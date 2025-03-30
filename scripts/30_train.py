@@ -33,8 +33,8 @@ do_hyperparameter_optimization = False  # set to False to use the default hyperp
 n_hpo_iters = 20  # number of hyperparameter optimization iterations
 n_jobs = -1  # number of jobs to run in parallel (set to 1 if your laptop gets too hot)
 
-in_path = "training file goes here"
-out_dir = "output directory goes here"
+in_path = "./data/input/emma112.csv"
+out_dir = "./data/output"
 
 # %%
 # parse script arguments from command line
@@ -337,3 +337,4 @@ print("All Features:")
 print(f"Precision: {precision}")
 print(f"Recall: {recall}")
 print(f"F1 Score: {f1}")
+
