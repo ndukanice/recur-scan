@@ -1,6 +1,7 @@
 # test features
 import pytest
-
+import statistics
+import datetime
 from recur_scan.features import (
     get_ends_in_99,
     get_is_always_recurring,
@@ -13,8 +14,10 @@ from recur_scan.features import (
     get_pct_transactions_days_apart,
     get_pct_transactions_same_day,
     get_percent_transactions_same_amount,
+    get_is_recurring,
+    Transaction,
+    get_recurring_transaction_confidence,
 )
-from recur_scan.transactions import Transaction
 
 
 def test_get_n_transactions_same_amount() -> None:
@@ -137,3 +140,50 @@ def test_get_is_always_recurring() -> None:
     assert not get_is_always_recurring(
         Transaction(id=2, user_id="user1", name="walmart", amount=100, date="2024-01-01")
     )
+def get_is_recurring(transaction: Transaction, all_transactions: list[Transaction]) -> bool:
+    """
+    Check if the transaction is part of a recurring pattern based on the time intervals
+    between transactions with the same amount and vendor name.
+    """
+    transaction_date = _parse_date(transaction.date)
+    similar_transactions = [
+        t for t in all_transactions
+        if t.amount == transaction.amount and t.name == transaction.name and t.date != transaction.date
+    ]
+
+    if not similar_transactions:
+        return False
+
+    # Calculate the time intervals between the transaction and similar transactions
+    intervals = sorted(
+        abs((transaction_date - _parse_date(t.date)).days) for t in similar_transactions
+    )
+
+    # Check if the intervals form a recurring pattern (e.g., weekly, bi-weekly, monthly)
+    for interval in intervals:
+        if interval % 7 == 0 or interval % 14 == 0 or abs(interval - 30) <= 1:
+            return True
+
+    return False
+def test_get_recurring_transaction_confidence() -> None:
+    """Test recurring transaction confidence score calculation."""
+    transactions = [
+        Transaction(id=1, user_id="user1", name="Netflix", amount=15.99, date="2024-01-01"),
+        Transaction(id=2, user_id="user1", name="Netflix", amount=15.99, date="2024-01-08"),
+        Transaction(id=3, user_id="user1", name="Netflix", amount=15.99, date="2024-01-15"),
+        Transaction(id=4, user_id="user1", name="Spotify", amount=9.99, date="2024-01-01"),
+        Transaction(id=5, user_id="user1", name="Netflix", amount=15.99, date="2024-02-01"),
+    ]
+
+    # Test for a recurring transaction (Netflix)
+    score = get_recurring_transaction_confidence(transactions[0], transactions)
+    assert score > 0.5, f"Expected high confidence score for recurring transaction, got {score}"
+
+    # Test for a non-recurring transaction (Spotify)
+    score = get_recurring_transaction_confidence(transactions[3], transactions)
+    assert score < 0.5, f"Expected low confidence score for non-recurring transaction, got {score}"
+
+    # Test for a transaction with no similar transactions
+    non_recurring_transaction = Transaction(id=6, user_id="user1", name="Amazon", amount=50.00, date="2024-01-01")
+    score = get_recurring_transaction_confidence(non_recurring_transaction, transactions)
+    assert score < 0.5, f"Expected low confidence score for transaction with no similar transactions, got {score}"
